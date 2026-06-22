@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime, timedelta
 from mock_data import inventory_items, orders, demand_forecasts, backlog_items, spending_summary, monthly_spending, category_spending, recent_transactions, purchase_orders
 
 app = FastAPI(title="Factory Inventory Management System")
@@ -80,6 +81,7 @@ class Order(BaseModel):
     actual_delivery: Optional[str] = None
     warehouse: Optional[str] = None
     category: Optional[str] = None
+    type: Optional[str] = None  # "restocking" for orders created via the Restocking tab
 
 class DemandForecast(BaseModel):
     id: str
@@ -118,6 +120,18 @@ class CreatePurchaseOrderRequest(BaseModel):
     quantity: int
     unit_cost: float
     expected_delivery_date: str
+    notes: Optional[str] = None
+
+class RestockingOrderItem(BaseModel):
+    sku: str
+    name: str
+    quantity: int
+    unit_cost: float
+
+class CreateRestockingOrderRequest(BaseModel):
+    items: List[RestockingOrderItem]
+    warehouse: str
+    lead_time_days: int
     notes: Optional[str] = None
 
 # API endpoints
@@ -303,6 +317,46 @@ def get_monthly_trends():
     result = list(months.values())
     result.sort(key=lambda x: x['month'])
     return result
+
+@app.post("/api/restocking-orders", response_model=Order)
+def create_restocking_order(request: CreateRestockingOrderRequest):
+    """Create a restocking order from recommended items; appended to in-memory orders list."""
+    now = datetime.now()
+    expected = now + timedelta(days=request.lead_time_days)
+
+    # Use length-based counter so order numbers remain unique across in-process lifetime
+    order_number = f"RST-{now.year}-{str(len(orders) + 1).zfill(5)}"
+    order_id = f"rst-{int(now.timestamp() * 1000)}"
+
+    total_value = sum(item.quantity * item.unit_cost for item in request.items)
+    items_payload = [
+        {"sku": item.sku, "name": item.name, "quantity": item.quantity, "unit_price": item.unit_cost}
+        for item in request.items
+    ]
+
+    # Derive category from the first item's SKU prefix if available
+    first_sku = request.items[0].sku if request.items else ""
+    inv_match = next((i for i in inventory_items if i["sku"] == first_sku), None)
+    category = inv_match["category"] if inv_match else "restocking"
+
+    new_order = {
+        "id": order_id,
+        "order_number": order_number,
+        "customer": "Internal Restocking",
+        "items": items_payload,
+        "status": "Processing",
+        "order_date": now.isoformat(),
+        "expected_delivery": expected.isoformat(),
+        "total_value": round(total_value, 2),
+        "actual_delivery": None,
+        "warehouse": request.warehouse,
+        "category": category,
+        "type": "restocking",
+    }
+
+    orders.append(new_order)
+    return new_order
+
 
 if __name__ == "__main__":
     import uvicorn
