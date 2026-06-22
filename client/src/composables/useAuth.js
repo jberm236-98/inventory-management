@@ -4,7 +4,7 @@ import { useI18n } from './useI18n'
 // Base user data (language-independent)
 const baseUserData = {
   id: 1,
-  email: 'john.doe@catalystcomponents.com',
+  email: 'jbermensolocutler@alixpartners.com',
   phone: '+1 (111) 111-1111',
   avatar: null,
   joinDate: '2022-03-15'
@@ -19,7 +19,7 @@ const createCurrentUser = () => {
 
     return {
       ...baseUserData,
-      name: isJapanese ? '田中 太郎' : 'John Doe',
+      name: 'Jesse Bermensolo',
       jobTitle: isJapanese ? 'オペレーションマネージャー' : 'Operations Manager',
       department: isJapanese ? 'サプライチェーン運営部' : 'Supply Chain Operations',
       location: isJapanese ? 'サンフランシスコ' : 'San Francisco',
