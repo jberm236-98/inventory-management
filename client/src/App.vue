@@ -1,42 +1,66 @@
 <template>
   <div class="app">
-    <header class="top-nav">
-      <div class="nav-container">
-        <div class="logo">
-          <h1>{{ t('nav.companyName') }}</h1>
-          <span class="subtitle">{{ t('nav.subtitle') }}</span>
+    <aside :class="['sidebar', { collapsed: isCollapsed }]">
+      <div class="sidebar-header">
+        <div v-if="!isCollapsed" class="sidebar-logo">
+          <span class="sidebar-logo-text">Catalyst Components</span>
+          <span class="sidebar-logo-sub">Inventory Management</span>
         </div>
-        <nav class="nav-tabs">
-          <router-link to="/" :class="{ active: $route.path === '/' }">
-            {{ t('nav.overview') }}
-          </router-link>
-          <router-link to="/inventory" :class="{ active: $route.path === '/inventory' }">
-            {{ t('nav.inventory') }}
-          </router-link>
-          <router-link to="/orders" :class="{ active: $route.path === '/orders' }">
-            {{ t('nav.orders') }}
-          </router-link>
-          <router-link to="/spending" :class="{ active: $route.path === '/spending' }">
-            {{ t('nav.finance') }}
-          </router-link>
-          <router-link to="/demand" :class="{ active: $route.path === '/demand' }">
-            {{ t('nav.demandForecast') }}
-          </router-link>
-          <router-link to="/reports" :class="{ active: $route.path === '/reports' }">
-            Reports
-          </router-link>
-        </nav>
+        <button
+          class="sidebar-toggle"
+          @click="toggleSidebar"
+          :title="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="['toggle-icon', { rotated: isCollapsed }]">
+            <path d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <router-link
+          v-for="item in navItems"
+          :key="item.route"
+          :to="item.route"
+          :class="['sidebar-link', { active: $route.path === item.route }]"
+          :title="isCollapsed ? item.label : ''"
+        >
+          <svg class="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path :d="item.icon" />
+          </svg>
+          <span v-if="!isCollapsed" class="sidebar-label">{{ item.label }}</span>
+        </router-link>
+      </nav>
+
+      <div class="sidebar-footer" v-if="!isCollapsed">
         <LanguageSwitcher />
         <ProfileMenu
           @show-profile-details="showProfileDetails = true"
           @show-tasks="showTasks = true"
         />
       </div>
-    </header>
-    <FilterBar />
-    <main class="main-content">
-      <router-view />
-    </main>
+    </aside>
+
+    <div class="app-body">
+      <!-- Slim top bar: always visible, holds utility controls when sidebar is collapsed -->
+      <div class="top-bar">
+        <div class="top-bar-right">
+          <template v-if="isCollapsed">
+            <LanguageSwitcher />
+            <ProfileMenu
+              @show-profile-details="showProfileDetails = true"
+              @show-tasks="showTasks = true"
+            />
+          </template>
+        </div>
+      </div>
+
+      <FilterBar />
+
+      <main class="main-content">
+        <router-view />
+      </main>
+    </div>
 
     <ProfileDetailsModal
       :is-open="showProfileDetails"
@@ -55,8 +79,7 @@
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue'
-import { api } from './api'
+import { ref, computed } from 'vue'
 import { useAuth } from './composables/useAuth'
 import { useI18n } from './composables/useI18n'
 import FilterBar from './components/FilterBar.vue'
@@ -81,72 +104,84 @@ export default {
     const showTasks = ref(false)
     const apiTasks = ref([])
 
-    // Merge mock tasks from currentUser with API tasks
+    // Sidebar collapse state — persisted to localStorage.
+    // Default: collapsed on mobile (<768px), expanded on desktop.
+    const getInitialCollapsed = () => {
+      const stored = localStorage.getItem('sidebar-collapsed')
+      if (stored !== null) return stored === 'true'
+      return window.innerWidth < 768
+    }
+    const isCollapsed = ref(getInitialCollapsed())
+    const toggleSidebar = () => {
+      isCollapsed.value = !isCollapsed.value
+      localStorage.setItem('sidebar-collapsed', isCollapsed.value)
+    }
+
+    const navItems = [
+      {
+        route: '/',
+        label: 'Overview',
+        icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'
+      },
+      {
+        route: '/inventory',
+        label: 'Inventory',
+        icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'
+      },
+      {
+        route: '/orders',
+        label: 'Orders',
+        icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01'
+      },
+      {
+        route: '/spending',
+        label: 'Finance',
+        icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+      },
+      {
+        route: '/demand',
+        label: 'Demand Forecast',
+        icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'
+      },
+      {
+        route: '/reports',
+        label: 'Reports',
+        icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
+      },
+      {
+        route: '/restocking',
+        label: 'Restocking',
+        icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
+      }
+    ]
+
     const tasks = computed(() => {
       return [...currentUser.value.tasks, ...apiTasks.value]
     })
 
-    const loadTasks = async () => {
-      try {
-        apiTasks.value = await api.getTasks()
-      } catch (err) {
-        console.error('Failed to load tasks:', err)
+    const addTask = (taskData) => {
+      apiTasks.value.unshift({ id: 'task-' + Date.now(), ...taskData, status: 'pending' })
+    }
+
+    const deleteTask = (taskId) => {
+      const isMockTask = currentUser.value.tasks.some(t => t.id === taskId)
+      if (isMockTask) {
+        const index = currentUser.value.tasks.findIndex(t => t.id === taskId)
+        if (index !== -1) currentUser.value.tasks.splice(index, 1)
+      } else {
+        apiTasks.value = apiTasks.value.filter(t => t.id !== taskId)
       }
     }
 
-    const addTask = async (taskData) => {
-      try {
-        const newTask = await api.createTask(taskData)
-        // Add new task to the beginning of the array
-        apiTasks.value.unshift(newTask)
-      } catch (err) {
-        console.error('Failed to add task:', err)
+    const toggleTask = (taskId) => {
+      const mockTask = currentUser.value.tasks.find(t => t.id === taskId)
+      if (mockTask) {
+        mockTask.status = mockTask.status === 'pending' ? 'completed' : 'pending'
+      } else {
+        const task = apiTasks.value.find(t => t.id === taskId)
+        if (task) task.status = task.status === 'pending' ? 'completed' : 'pending'
       }
     }
-
-    const deleteTask = async (taskId) => {
-      try {
-        // Check if it's a mock task (from currentUser)
-        const isMockTask = currentUser.value.tasks.some(t => t.id === taskId)
-
-        if (isMockTask) {
-          // Remove from mock tasks
-          const index = currentUser.value.tasks.findIndex(t => t.id === taskId)
-          if (index !== -1) {
-            currentUser.value.tasks.splice(index, 1)
-          }
-        } else {
-          // Remove from API tasks
-          await api.deleteTask(taskId)
-          apiTasks.value = apiTasks.value.filter(t => t.id !== taskId)
-        }
-      } catch (err) {
-        console.error('Failed to delete task:', err)
-      }
-    }
-
-    const toggleTask = async (taskId) => {
-      try {
-        // Check if it's a mock task (from currentUser)
-        const mockTask = currentUser.value.tasks.find(t => t.id === taskId)
-
-        if (mockTask) {
-          // Toggle mock task status
-          mockTask.status = mockTask.status === 'pending' ? 'completed' : 'pending'
-        } else {
-          // Toggle API task
-          const updatedTask = await api.toggleTask(taskId)
-          const index = apiTasks.value.findIndex(t => t.id === taskId)
-          if (index !== -1) {
-            apiTasks.value[index] = updatedTask
-          }
-        }
-      } catch (err) {
-        console.error('Failed to toggle task:', err)
-      }
-    }
-
-    onMounted(loadTasks)
 
     return {
       t,
@@ -155,7 +190,10 @@ export default {
       tasks,
       addTask,
       deleteTask,
-      toggleTask
+      toggleTask,
+      isCollapsed,
+      toggleSidebar,
+      navItems
     }
   }
 }
@@ -178,92 +216,188 @@ body {
 
 .app {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   min-height: 100vh;
 }
 
-.top-nav {
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+/* ── Sidebar ─────────────────────────────────────────── */
+
+.sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: #0f172a;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: width 0.25s ease;
   position: sticky;
   top: 0;
+  height: 100vh;
+  overflow: hidden;
   z-index: 100;
 }
 
-.nav-container {
-  max-width: 1600px;
-  margin: 0 auto;
+.sidebar.collapsed {
+  width: 56px;
+}
+
+.sidebar-header {
   display: flex;
   align-items: center;
-  padding: 0 2rem;
-  height: 70px;
+  justify-content: space-between;
+  padding: 1rem 0.75rem 0.75rem;
+  border-bottom: 1px solid #1e293b;
+  min-height: 64px;
+  flex-shrink: 0;
 }
 
-.nav-container > .nav-tabs {
-  margin-left: auto;
-  margin-right: 1rem;
+.sidebar.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 1rem 0.5rem 0.75rem;
 }
 
-.nav-container > .language-switcher {
-  margin-right: 1rem;
-}
-
-.logo {
+.sidebar-logo {
   display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
 }
 
-.logo h1 {
-  font-size: 1.375rem;
+.sidebar-logo-text {
+  font-size: 0.875rem;
   font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.025em;
+  color: #f1f5f9;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
 }
 
-.subtitle {
-  font-size: 0.813rem;
+.sidebar-logo-sub {
+  font-size: 0.688rem;
   color: #64748b;
-  font-weight: 400;
-  padding-left: 0.75rem;
-  border-left: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
-.nav-tabs {
+.sidebar-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 4px;
+  border-radius: 4px;
   display: flex;
-  gap: 0.25rem;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
 }
 
-.nav-tabs a {
-  padding: 0.625rem 1.25rem;
-  color: #64748b;
+.sidebar-toggle:hover {
+  color: #f1f5f9;
+  background: #1e293b;
+}
+
+.toggle-icon {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.25s ease;
+}
+
+/* Rotate chevron when collapsed so it points right (expand) */
+.toggle-icon.rotated {
+  transform: rotate(180deg);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 0.5rem 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  color: #94a3b8;
   text-decoration: none;
-  font-weight: 500;
-  font-size: 0.938rem;
   border-radius: 6px;
-  transition: all 0.2s ease;
-  position: relative;
+  margin: 2px 8px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.nav-tabs a:hover {
-  color: #0f172a;
-  background: #f1f5f9;
+.sidebar-link:hover {
+  color: #f1f5f9;
+  background: #1e293b;
 }
 
-.nav-tabs a.active {
-  color: #2563eb;
-  background: #eff6ff;
+.sidebar-link.active {
+  color: #ffffff;
+  background: #1e40af;
 }
 
-.nav-tabs a.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #2563eb;
+.sidebar-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.sidebar-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Collapsed: center icons */
+.sidebar.collapsed .sidebar-link {
+  justify-content: center;
+  padding: 0.625rem;
+  margin: 2px 6px;
+}
+
+.sidebar-footer {
+  padding: 0.75rem 0.5rem;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* ── Right column ────────────────────────────────────── */
+
+.app-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Slim top bar — only visible (non-empty) when sidebar is collapsed */
+.top-bar {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 1.25rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Hide the top bar when the sidebar is expanded (controls live in sidebar-footer) */
+/* We achieve this by making the bar zero-height when empty rather than hiding it,
+   so FilterBar always starts at the same Y offset — keeping layout stable. */
+.top-bar:not(:has(.language-switcher)) {
+  display: none;
 }
 
 .main-content {
